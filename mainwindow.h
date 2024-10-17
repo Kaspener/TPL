@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QStandardItemModel>
+#include <QStack>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -27,13 +28,15 @@ private:
     Ui::MainWindow *ui;
     QStringList states;
     QStringList alphabet;
-    QMap<QString, QMap<QString, QString>> transitionFunction;
+    QStringList in_stack;
+    QMap<std::tuple<QString, QString, QString>, std::tuple<QString, QString>> transitionFunction;
     QString startState;
+    QString startStack;
     QStringList endStates;
     QStandardItemModel *model;
 
     bool parseJsonFile(const QString& filePath);
-    void populateTable();
+    void populateList();
     void openFields();
 };
 #endif // MAINWINDOW_H
