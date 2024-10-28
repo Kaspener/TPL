@@ -70,8 +70,8 @@ bool MainWindow::parseJsonFile(const QString& filePath)
                 alphabet.append(value.toString());
             }
         }
-        if (!alphabet.contains("λ")){
-            alphabet.push_back("λ");
+        if (!alphabet.contains("ε")){
+            alphabet.push_back("ε");
         }
         qDebug() << "Alphabet:" << alphabet;
     }
@@ -95,6 +95,21 @@ bool MainWindow::parseJsonFile(const QString& filePath)
         return false;
     }
 
+    if (jsonObj.contains("in_transform") && jsonObj["in_transform"].isArray()) {
+        QJsonArray inTransformArray = jsonObj["in_transform"].toArray();
+        in_transform.clear();
+        for (const QJsonValue &value : inTransformArray) {
+            if (value.isString()) {
+                in_transform.append(value.toString());
+            }
+        }
+        qDebug() << "In transform:" << in_transform;
+    }
+    else{
+        qDebug() << "Массив 'in_transform' не найден или не является массивом!";
+        return false;
+    }
+
     if (jsonObj.contains("rules") && jsonObj["rules"].isArray()) {
         QJsonArray rulesArray = jsonObj["rules"].toArray();
         transitionFunction.clear();
@@ -106,7 +121,7 @@ bool MainWindow::parseJsonFile(const QString& filePath)
             }
 
             QJsonArray rule = value.toArray();
-            if (rule.size() != 5) {
+            if (rule.size() != 6) {
                 qDebug() << "Неверный размер массива правила!";
                 return false;
             }
@@ -115,8 +130,9 @@ bool MainWindow::parseJsonFile(const QString& filePath)
             QString key3 = rule[2].toString();
             QString value1 = rule[3].toString();
             QString value2 = rule[4].toString();
+            QString value3 = rule[5].toString();
 
-            transitionFunction[std::make_tuple(key1, key2, key3)] = std::make_tuple(value1, value2);
+            transitionFunction[std::make_tuple(key1, key2, key3)] = std::make_tuple(value1, value2, value3);
         }
     }
     else{
@@ -177,9 +193,10 @@ void MainWindow::populateList()
                              .arg(std::get<1>(key))
                              .arg(std::get<2>(key));
 
-        QString valueStr = QString("(%1, %2)")
+        QString valueStr = QString("(%1, %2, %3)")
                                .arg(std::get<0>(value))
-                               .arg(std::get<1>(value));
+                               .arg(std::get<1>(value))
+                               .arg(std::get<2>(value));
 
         QStandardItem *item = new QStandardItem(QString("%1 -> %2").arg(keyStr, valueStr));
 
@@ -216,9 +233,10 @@ void MainWindow::on_start_clicked()
     stack.push(startStack);
     QString newState;
     QString stackOperation;
-    bool reload = false;
+    QString transformOperation;
+    QString resultTransform {};
     while(stack.size() > 0){
-        if(command.isEmpty()) command = "λ";
+        if(command.isEmpty()) command = "ε";
         QString string = "<font color='green'>(" + state + ", " + command + ", " + printStack(stack) + ")</font>";
         ui->log->append(string);
         if (!states.contains(state)){
@@ -255,18 +273,16 @@ void MainWindow::on_start_clicked()
             }
         }
         if (!transitionFunction.contains(std::make_tuple(state, command[0], stack.top()))){
-            QString error = "<font color='red'>Не существует правила перехода (" + state + "," + command[0] + ", " + stack.top() + "). Цепочка не принадлежит заданному ДМПА!</font>";
+            QString error = "<font color='red'>Не существует правила перехода (" + state + "," + command[0] + ", " + stack.top() + "). Цепочка не принадлежит заданному МП!</font>";
             ui->log->append(error);
             openFields();
             return;
         }
         QString left = "<font color='green'>δ(" + state + "," + command[0] + "," + stack.top() + ") -> ";
-        std::tie(newState, stackOperation) = transitionFunction[std::make_tuple(state, command[0], stack.top())];
+        std::tie(newState, stackOperation, transformOperation) = transitionFunction[std::make_tuple(state, command[0], stack.top())];
 
         if (stackOperation.length() > 1){
-            if (QString(stackOperation.back()) == stack.top()){
-                stackOperation.chop(1);
-            }
+            stack.pop();
             for(auto it = stackOperation.rbegin(); it != stackOperation.rend(); it++){
                 stack.push(QString(*it));
             }
@@ -283,12 +299,16 @@ void MainWindow::on_start_clicked()
             }
         }
 
+        if (transformOperation != "ε"){
+            resultTransform += transformOperation;
+        }
+
         state = newState;
 
         command.removeFirst();
         QString right;
-        if (command.isEmpty()) command = "λ";
-        right = "Новое состояние {" + state + "} оставшаяся цепочка - " + command + "</font>";
+        if (command.isEmpty()) command = "ε";
+        right = "Новое состояние {" + state + "} оставшаяся цепочка - " + command + " | Цепочка перевода {" + resultTransform + "}</font>";
         ui->log->append(left + right);
         ui->log->append("<font color='green'>Стек (" + printStack(stack) +")");
         QTime dieTime= QTime::currentTime().addMSecs(ui->slider->value());
@@ -296,20 +316,20 @@ void MainWindow::on_start_clicked()
             QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
         item->setBackground(color);
     }
-    if (command!="λ"){
-        QString error = "<font color='red'>В цепочке остались символы: " + command + ". Цепочка не принадлежит заданному ДМПА!</font>";
+    if (command!="ε"){
+        QString error = "<font color='red'>В цепочке остались символы: " + command + ". Цепочка не принадлежит заданному МП!</font>";
         ui->log->append(error);
         openFields();
         return;
     }
 
     if (!endStates.contains(state)){
-       QString error = "<font color='red'>Cостояние {" + state + "} не является конечным. Цепочка не принадлежит заданному ДМПА!</font>";
+       QString error = "<font color='red'>Cостояние {" + state + "} не является конечным. Цепочка не принадлежит заданному МП!</font>";
        ui->log->append(error);
         openFields();
         return;
     }
-    ui->log->append("<font color='green'>Цепочка принадлежит заданному ДМПА!</font>");
+    ui->log->append("<font color='green'>Перевод цепочки = " + resultTransform + "</font>");
     openFields();
 }
 

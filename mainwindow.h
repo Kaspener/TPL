@@ -29,7 +29,8 @@ private:
     QStringList states;
     QStringList alphabet;
     QStringList in_stack;
-    QMap<std::tuple<QString, QString, QString>, std::tuple<QString, QString>> transitionFunction;
+    QStringList in_transform;
+    QMap<std::tuple<QString, QString, QString>, std::tuple<QString, QString, QString>> transitionFunction;
     QString startState;
     QString startStack;
     QStringList endStates;
